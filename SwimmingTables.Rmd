@@ -1,0 +1,84 @@
+---
+title: "Untitled"
+author: "Rebecca Silva"
+date: "July 23, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(rvest)
+```
+
+```{r}
+webpage <- read_html("https://www.usms.org/comp/tt/toptenlist.php?CourseID=1&Year=2019&Sex=M&AgeGroupID=1")
+tbls <- html_nodes(webpage, "table") #acts as CSS selector
+
+tbls_ls <- list()
+
+tbls_ls <- webpage %>% 
+  html_table(fill = T) # list of 18 
+
+tbls_ls[[1]]
+
+header <- webpage %>% 
+  html_nodes("h3") %>%
+  html_text()
+
+#removes spaces, yr, parentheses
+tidy <- function(x){
+  x <- gsub("\\s*\\([^\\)]+\\)","", x)
+  x <- gsub(" ", ".", x)
+}
+
+#could remove everything after stlye of stroke bc its in title 
+tidy2 <- function(x){
+  if( grepl("SCY", x, fixed = T)){
+    x <- gsub("SCY.*", "", x)
+  }
+  else {
+    x <- gsub("LCM.*", "", x)
+  }
+  x <- gsub(" ", "", x)
+}
+header <- unname(sapply(header, tidy2))
+
+names(tbls_ls) <- header[-1]
+
+
+
+
+# add column with event name (elements in header[-1])
+tbls_ls <- mapply(cbind, tbls_ls, "Event"=header[-1], SIMPLIFY=F)
+
+
+
+#########****  want to name it header[1] and put into a list. 
+tbls_df <- do.call(rbind.data.frame, tbls_ls)
+tbls_df <- mapply(cbind, tbls_df, "Sex" = AgeGp )
+
+all_tbls <- list() #list of lists 
+all_tbls[[1]] <- tbls_ls
+
+
+name(all_tbls[[1]]) <- header[1] # 1 in names becomes index
+v<- header[-1]
+```
+
+
+```{r}
+melt(setNames(tbls_ls, v))
+
+do.call(rbind, Map(f = expand.grid, l = tbls_ls, n = v, stringsAsFactors = F))
+
+#Create an appropriately sized vector of names
+nameVector <- unlist(mapply(function(x,y){ rep(y, length(x)) }, tbls_ls, v))
+
+#Create the result
+resultDF <- rbind.data.frame(unlist(tbls_ls), nameVector)
+```
+
