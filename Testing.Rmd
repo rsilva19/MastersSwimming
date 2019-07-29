@@ -1,0 +1,92 @@
+---
+title: "testing"
+author: "Rebecca Silva"
+date: "July 27, 2019"
+output: html_document
+---
+
+
+
+```{r}
+  sexIndex <- 1
+  tbls_AllSex <- list()
+  for (sex in Sex){
+    yearIndex <- 1  #***
+    tbls_AllYear <- list()
+    for( year in c(1971, 1987)){
+      AgeIndex <- 1
+      tbls_AllAge <- list()
+      for (i in AgeGpID) {
+        path <- sprintf("https://www.usms.org/comp/tt/toptenlist.php?CourseID=3&Year=%d&Sex=%s&AgeGroupID=%d", year, paste(sex), i )
+        #print(path)
+        web <- read_html(path)
+        if (testDNExists(web)){
+          next
+        } else{
+       # tbls_AllAge[[AgeIndex]] <- list()   ##*** replace all i with AgeIndex 
+        tbls_AllAge[[AgeIndex]] <- web %>% 
+          html_table(fill = T) # list of each table on pg (18) 
+        headers <- web %>% 
+          html_nodes("h3") %>%
+          html_text()
+        headers <- unname(sapply(headers, tidyHeader))
+        tbls_AllAge[[AgeIndex]] <- mapply(cbind, tbls_AllAge[[AgeIndex]], 
+                             "Event"=headers[-1], SIMPLIFY=F)
+        tbls_df <- do.call(rbind.data.frame, 
+                     tbls_AllAge[[AgeIndex]]) #makes df of all tables for 1 age gp 
+        tbls_AllAge[[AgeIndex]] <- tbls_df
+        AgeIndex <- AgeIndex + 1  ## ****
+        }
+      }
+  
+      if (length(tbls_AllAge) != 0){
+        tbls_AllAge_df <- do.call(rbind.data.frame, tbls_AllAge)
+        tbls_AllAge_df <- cbind(tbls_AllAge_df, 
+                        "Year" = rep(year, nrow(tbls_AllAge_df)))  ##took out paste
+        tbls_AllYear[[yearIndex]] <- tbls_AllAge_df
+        yearIndex <- yearIndex + 1
+      }else{ next }
+    }
+    
+    tbls_AllYear_df <- do.call(rbind.data.frame, tbls_AllYear)
+    tbls_AllYear_df <- cbind(tbls_AllYear_df, 
+                        "Sex" = rep(paste(sex), nrow(tbls_AllYear_df)))
+    tbls_AllSex[[sexIndex]] <- tbls_AllYear_df
+    sexIndex <- sexIndex + 1
+  }
+  
+  tbls_AllSex_df <- do.call(rbind.data.frame, tbls_AllSex)
+
+```
+
+
+```{r}
+
+  tbls_AllSex <- list()
+  sexIndex <- 0
+  AgeIndex <- 0  ## *****
+  yearIndex <- 1  #***
+  for (sex in Sex){
+    sexIndex <- sexIndex + 1
+    tbls_AllYear <- list()
+    for( year in c(1971, 1987)){
+      for (i in AgeGpID) {
+        path <- sprintf("https://www.usms.org/comp/tt/toptenlist.php?CourseID=1&Year=%d&Sex=%s&AgeGroupID=%d", year, paste(sex), i )
+        print(path)
+        web <- read_html(path)
+        if (testDNExists(web)){
+          next
+        } else{
+          print( paste( "tables of age gp", i, "in df" ))
+        }
+      }
+      print( paste("creates all age df for year = ", year, "and sex = " , sex))
+      print( paste("all age df goes into all year list with index", yearIndex)) 
+      yearIndex <- yearIndex + 1
+    }
+    print( paste("binds all year list to df and adds sex = ", sex))
+    print( paste( " adds df to all sex list with index = ", sexIndex))
+  }
+  print("lastly binds both sexes together")
+
+```

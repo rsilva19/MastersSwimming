@@ -34,8 +34,11 @@ tidyHeader <- function(x){
   if( grepl("SCY", x, fixed = T)){
     x <- gsub("SCY.*", "", x)
   }
-  else {
+  else if( grepl("LCM", x, fixed = T)){
     x <- gsub("LCM.*", "", x)
+  }
+  else{
+    x <- gsub("SCM.*", "", x)
   }
   x <- gsub(" ", "", x)
 }
@@ -54,41 +57,6 @@ testDNExists <- function(web){
 ```
 
 
-##1 year (Age ages)
-```{r}
-## 1 year  - so will have men all ages year 2019 
-tbls_AllAge <- list()
-for (i in AgeGpID) {
-  path <- sprintf("https://www.usms.org/comp/tt/toptenlist.php?CourseID=1&Year=2019&Sex=M&AgeGroupID=%d", i )
-  web <- read_html(path)
-  if (testDNExists(web)){
-    next
-  }
-  tbls_AllAge[[i]] <- list()
-  tbls_AllAge[[i]] <- web %>% 
-    html_table(fill = T) # list of each table on pg (18) 
-
-  headers <- web %>% 
-    html_nodes("h3") %>%
-    html_text()
-
-  headers <- unname(sapply(headers, tidyHeader))
-
-  # add column with event name (elements in headers[-1])
-  tbls_AllAge[[i]] <- mapply(cbind, tbls_AllAge[[i]], 
-                             "Event"=headers[-1], SIMPLIFY=F)
-  tbls_AllAge[[i]] <- mapply(cbind, tbls_AllAge[[i]], 
-                             "Year"=headers[-1], SIMPLIFY=F)
-#########****  want to name it headers[1] and put into a list. 
-  tbls_df <- do.call(rbind.data.frame, 
-                     tbls_AllAge[[i]]) #makes df of all tables for 1 age gp 
-  tbls_AllAge[[i]] <- tbls_df
-
-}
-
-
-
-```
 
 
 ##ALL  years (all ages)
@@ -139,56 +107,77 @@ for( year in Year ){
 
 
 
-##ALL  Sexes (all years, all ages)
 
+
+###FUNCTION for SCY, SCM, LCM
 ```{r}
-## 2 years to test, both sexes
-
-tbls_AllSex <- list()
-sexIndex <- 0
-for (sex in Sex){
-  sexIndex <- sexIndex + 1
-  tbls_AllYear <- list()
-
-  for( year in c(2018:2019)){
-    index = year - 2017  #***
-  
-    for (i in AgeGpID) {
-      path <- sprintf("https://www.usms.org/comp/tt/toptenlist.php?CourseID=1&Year=%d&Sex=M&AgeGroupID=%d", year, i )
-      web <- read_html(path)
-      if (testDNExists(web)){
-        next
-      }
-      tbls_AllAge[[i]] <- list()
-      tbls_AllAge[[i]] <- web %>% 
-        html_table(fill = T) # list of each table on pg (18) 
-
-      headers <- web %>% 
-        html_nodes("h3") %>%
-        html_text()
-
-      headers <- unname(sapply(headers, tidyHeader))
-
-    # add column with event name (elements in headers[-1])
-      tbls_AllAge[[i]] <- mapply(cbind, tbls_AllAge[[i]], 
+readTbls <- function(CourseID){
+  sexIndex <- 1
+  tbls_AllSex <- list()
+  for (sex in Sex){
+    yearIndex <- 1  #***
+    tbls_AllYear <- list()
+    for( year in Year){
+      AgeIndex <- 1
+      tbls_AllAge <- list()
+      for (i in AgeGpID) {
+        path <- sprintf("https://www.usms.org/comp/tt/toptenlist.php?CourseID=%d&Year=%d&Sex=%s&AgeGroupID=%d", CourseID, year, paste(sex), i )
+        web <- read_html(path)
+        if (testDNExists(web)){
+          next
+        } else{
+        tbls_AllAge[[AgeIndex]] <- web %>% 
+          html_table(fill = T) # list of each table on pg (18) 
+        headers <- web %>% 
+          html_nodes("h3") %>%
+          html_text()
+        headers <- unname(sapply(headers, tidyHeader))
+        tbls_AllAge[[AgeIndex]] <- mapply(cbind, tbls_AllAge[[AgeIndex]], 
                              "Event"=headers[-1], SIMPLIFY=F)
-
-    #########****  want to name it headers[1] and put into a list. 
-      tbls_df <- do.call(rbind.data.frame, 
-                     tbls_AllAge[[i]]) #makes df of all tables for 1 age gp 
-      tbls_AllAge[[i]] <- tbls_df
-
+        tbls_df <- do.call(rbind.data.frame, 
+                     tbls_AllAge[[AgeIndex]]) #makes df of all tables for 1 age gp 
+        tbls_AllAge[[AgeIndex]] <- tbls_df
+        AgeIndex <- AgeIndex + 1  ## ****
+        }
       }
-    tbls_AllAge_df <- do.call(rbind.data.frame, tbls_AllAge)
-    tbls_AllAge_df <- cbind(tbls_AllAge_df, 
-                        "Year" = rep(paste(year), nrow(tbls_AllAge_df)))
-    tbls_AllYear[[index]] <- tbls_AllAge_df
-  }
-
-  tbls_AllYear_df <- do.call(rbind.data.frame, tbls_AllYear)
-  tbls_AllYear_df <- cbind(tbls_AllYear_df, 
-                        "Sex" = rep(paste(sex), nrow(tbls_AllYear_df)))
-  tbls_AllSex[[sexIndex]] <- tbls_AllYear_df
   
+      if (length(tbls_AllAge) != 0){
+        tbls_AllAge_df <- do.call(rbind.data.frame, tbls_AllAge)
+        tbls_AllAge_df <- cbind(tbls_AllAge_df, 
+                        "Year" = rep(year, nrow(tbls_AllAge_df)))  ##took out paste
+        tbls_AllYear[[yearIndex]] <- tbls_AllAge_df
+        yearIndex <- yearIndex + 1
+      }else{ next }
+    }
+    
+    tbls_AllYear_df <- do.call(rbind.data.frame, tbls_AllYear)
+    tbls_AllYear_df <- cbind(tbls_AllYear_df, 
+                        "Sex" = rep(paste(sex), nrow(tbls_AllYear_df)))
+    tbls_AllSex[[sexIndex]] <- tbls_AllYear_df
+    sexIndex <- sexIndex + 1
+  }
+  
+  tbls_AllSex_df <- do.call(rbind.data.frame, tbls_AllSex)
+  return(tbls_AllSex_df)
 }
 ```
+
+##Use Function for SCY, SCM, LCM
+```{r}
+USMS_Top10_SCY <- readTbls(1)
+USMS_Top10_LCM <- readTbls(2) 
+USMS_Top10_SCM <- readTbls(3) #years 1985-2018
+
+
+USMS_Top10_SCY <- within(USMS_Top10_SCY, rm("#"))
+USMS_Top10_LCM <- within(USMS_Top10_LCM, rm("#"))
+USMS_Top10_SCM <- within(USMS_Top10_SCM, rm("#"))
+
+
+write.csv(USMS_Top10_SCY, "USMS_Top10_SCY", row.names = F) #Short Course Yards
+write.csv(USMS_Top10_SCM, "USMS_Top10_SCM", row.names = F) #Short Course Meters
+write.csv(USMS_Top10_LCM, "USMS_Top10_LCM", row.names = F) #Long Course Meters
+
+getwd()
+```
+
